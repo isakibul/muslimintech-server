@@ -83,7 +83,7 @@ app.post("/api/register", (req, res) => {
     referral,
   ];
 
-  db.query(query, values, (err, _result) => {
+  db.query(query, values, (err) => {
     if (err) {
       console.error("Error inserting data into MySQL", err);
       res.status(500).send("Internal Server Error");
