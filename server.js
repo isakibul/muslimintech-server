@@ -45,6 +45,10 @@ db.query(createTableQuery, (err, result) => {
   console.log("Users table created or already exists");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ message: "Health is okay!" });
+});
+
 app.post("/api/register", (req, res) => {
   const {
     email,
