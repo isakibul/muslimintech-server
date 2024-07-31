@@ -1,56 +1,43 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const mysql = require("mysql");
 const { body, validationResult } = require("express-validator");
 require("dotenv").config();
+const mongoose = require("mongoose");
 
 const app = express();
 
-const corsOptions = {
-  origin: "https://muslimintech-client.vercel.app",
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  allowedHeaders: ["Content-Type"],
-};
+app.use(cors());
 
-https: app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-const db = mysql.createConnection({
-  host: process.env.MYSQL_HOST,
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DATABASE,
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URL);
+
+const db = mongoose.connection;
+db.on("error", (err) => {
+  console.error("MongoDB connection error:", err);
+});
+db.once("open", () => {
+  console.log("Connected to MongoDB database");
 });
 
-db.connect((err) => {
-  if (err) {
-    throw err;
-  }
-  console.log("Connected to MySQL database");
+// Define user schema and model
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
+  country: { type: String, required: true },
+  mobileNumber: { type: String, required: true },
+  province: String,
+  city: String,
+  postcode: String,
+  involvement: { type: String, required: true },
+  specialties: { type: [String], required: true },
+  referral: { type: String, required: true },
 });
 
-const createTableQuery = `
-  CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    firstName VARCHAR(255) NOT NULL,
-    lastName VARCHAR(255) NOT NULL,
-    country VARCHAR(255) NOT NULL,
-    mobileNumber VARCHAR(255) NOT NULL,
-    province VARCHAR(255),
-    city VARCHAR(255),
-    postcode VARCHAR(255),
-    involvement VARCHAR(255) NOT NULL,
-    specialties TEXT NOT NULL,
-    referral VARCHAR(255) NOT NULL
-  );
-`;
-
-db.query(createTableQuery, (err, result) => {
-  if (err) throw err;
-  console.log("Users table created or already exists");
-});
+const User = mongoose.model("User", userSchema);
 
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Health is okay!" });
@@ -68,7 +55,7 @@ app.post(
     body("specialties").isArray().withMessage("Specialties should be an array"),
     body("referral").notEmpty().withMessage("Referral is required"),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -88,34 +75,29 @@ app.post(
       referral,
     } = req.body;
 
-    const query = `
-      INSERT INTO users (email, firstName, lastName, country, mobileNumber, province, city, postcode, involvement, specialties, referral)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+    try {
+      const user = new User({
+        email,
+        firstName,
+        lastName,
+        country,
+        mobileNumber,
+        province,
+        city,
+        postcode,
+        involvement,
+        specialties,
+        referral,
+      });
 
-    const values = [
-      email,
-      firstName,
-      lastName,
-      country,
-      mobileNumber,
-      province,
-      city,
-      postcode,
-      involvement,
-      JSON.stringify(specialties),
-      referral,
-    ];
-
-    db.query(query, values, (err) => {
-      if (err) {
-        console.error("Error inserting data into MySQL", err);
-        return res
-          .status(500)
-          .json({ message: "Internal Server Error", error: err.message });
-      }
+      await user.save();
       res.status(200).send("Registration successful");
-    });
+    } catch (err) {
+      console.error("Error inserting data into MongoDB", err);
+      res
+        .status(500)
+        .json({ message: "Internal Server Error", error: err.message });
+    }
   }
 );
 
