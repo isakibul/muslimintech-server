@@ -7,7 +7,13 @@ require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: "https://muslimintech-client.vercel.app",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  allowedHeaders: ["Content-Type"],
+};
+
+https: app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 const db = mysql.createConnection({
@@ -104,10 +110,11 @@ app.post(
     db.query(query, values, (err) => {
       if (err) {
         console.error("Error inserting data into MySQL", err);
-        res.status(500).send("Internal Server Error");
-      } else {
-        res.status(200).send("Registration successful");
+        return res
+          .status(500)
+          .json({ message: "Internal Server Error", error: err.message });
       }
+      res.status(200).send("Registration successful");
     });
   }
 );
