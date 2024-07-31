@@ -1,37 +1,56 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const mongoose = require("mongoose");
+const mysql = require("mysql");
 const { body, validationResult } = require("express-validator");
 require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: "https://muslimintech-client.vercel.app",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  allowedHeaders: ["Content-Type"],
+};
+
+https: app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-const mongoUrl = process.env.MONGODB_URL;
-
-mongoose
-  .connect(mongoUrl)
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => console.error("Error connecting to MongoDB", err));
-
-const userSchema = new mongoose.Schema({
-  email: { type: String, required: true },
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  country: { type: String, required: true },
-  mobileNumber: { type: String, required: true },
-  province: { type: String },
-  city: { type: String },
-  postcode: { type: String },
-  involvement: { type: String, required: true },
-  specialties: { type: [String], required: true },
-  referral: { type: String, required: true },
+const db = mysql.createConnection({
+  host: process.env.MYSQL_HOST,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database: process.env.MYSQL_DATABASE,
 });
 
-const User = mongoose.model("User", userSchema);
+db.connect((err) => {
+  if (err) {
+    throw err;
+  }
+  console.log("Connected to MySQL database");
+});
+
+const createTableQuery = `
+  CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    firstName VARCHAR(255) NOT NULL,
+    lastName VARCHAR(255) NOT NULL,
+    country VARCHAR(255) NOT NULL,
+    mobileNumber VARCHAR(255) NOT NULL,
+    province VARCHAR(255),
+    city VARCHAR(255),
+    postcode VARCHAR(255),
+    involvement VARCHAR(255) NOT NULL,
+    specialties TEXT NOT NULL,
+    referral VARCHAR(255) NOT NULL
+  );
+`;
+
+db.query(createTableQuery, (err, result) => {
+  if (err) throw err;
+  console.log("Users table created or already exists");
+});
 
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Health is okay!" });
@@ -69,7 +88,12 @@ app.post(
       referral,
     } = req.body;
 
-    const newUser = new User({
+    const query = `
+      INSERT INTO users (email, firstName, lastName, country, mobileNumber, province, city, postcode, involvement, specialties, referral)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
       email,
       firstName,
       lastName,
@@ -79,17 +103,19 @@ app.post(
       city,
       postcode,
       involvement,
-      specialties,
+      JSON.stringify(specialties),
       referral,
-    });
+    ];
 
-    newUser
-      .save()
-      .then(() => res.status(200).send("Registration successful"))
-      .catch((err) => {
-        console.error("Error inserting data into MongoDB", err);
-        res.status(500).send("Internal Server Error");
-      });
+    db.query(query, values, (err) => {
+      if (err) {
+        console.error("Error inserting data into MySQL", err);
+        return res
+          .status(500)
+          .json({ message: "Internal Server Error", error: err.message });
+      }
+      res.status(200).send("Registration successful");
+    });
   }
 );
 
